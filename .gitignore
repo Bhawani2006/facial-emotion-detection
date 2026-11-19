@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+
+# Jupyter / editor
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Models and datasets
+*.h5
+*.hdf5
+*.keras
+*.weights.*
+*.pth
+*.pt
+
+data_large/
+data_large_raw/
+data_ferplus/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs / temporary
+*.log
+*.tmp
