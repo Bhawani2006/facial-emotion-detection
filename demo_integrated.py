@@ -12,7 +12,6 @@ import threading
 import queue
 from datetime import datetime
 import numpy as np
-import mediapipe as mp
 
 print("=" * 60)
 print("INTEGRATED EMOTION DETECTION SYSTEM DEMONSTRATION")
@@ -101,22 +100,29 @@ except Exception as e:
 
 print()
 
-# Demonstrate MediaPipe face detection
-print("[3] Demonstrating MediaPipe face detection...")
+# Demonstrate OpenCV face detection
+print("[3] Demonstrating OpenCV face detection...")
 try:
-    import mediapipe as mp
-    print("  ✓ MediaPipe imported successfully")
-    
-    # Initialize MediaPipe
-    mp_face_detection = mp.solutions.face_detection
-    print("  ✓ MediaPipe face detection initialized")
-    
-    # Note: Actual detection requires camera
+    print("  ✓ OpenCV imported successfully")
+
+    # Initialize the Haar cascade bundled with OpenCV.
+    cascade_path = os.path.join(
+        cv2.data.haarcascades, 'haarcascade_frontalface_default.xml'
+    )
+    face_detector = cv2.CascadeClassifier(cascade_path)
+    if face_detector.empty():
+        raise RuntimeError(f"Could not load face cascade: {cascade_path}")
+
+    # Smoke-test detection without requiring a webcam or model files.
+    sample_frame = np.zeros((100, 100), dtype=np.uint8)
+    face_detector.detectMultiScale(
+        sample_frame, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+    )
+    print("  ✓ OpenCV Haar cascade face detection initialized")
     print("  Note: Full detection requires webcam input")
-    
-except ImportError as e:
-    print(f"  ✗ MediaPipe not installed: {e}")
-    print("  Install with: pip install mediapipe")
+
+except (cv2.error, RuntimeError, AttributeError) as e:
+    print(f"  ✗ OpenCV face detection initialization failed: {e}")
 
 print()
 
@@ -137,7 +143,7 @@ print("[5] COMPLETE WORKFLOW:")
 print("""
   1. Setup Environment:
      • Run: setup_enhanced.bat  (or manually install packages)
-     • This installs: MediaPipe, OpenCV, TensorFlow, Streamlit, etc.
+     • This demo uses: OpenCV, NumPy, Streamlit and SQLite.
 
   2. Initialize Database:
      • Run: python enhanced_emotion_detector.py --mode test
@@ -174,7 +180,7 @@ print("""
                   │ HTTP/WebSocket
   ┌───────────────▼─────────────────────────────────────────┐
   │               Enhanced Emotion Detector                   │
-  │  • MediaPipe BlazeFace (face detection)                  │
+  │  • OpenCV Haar cascade (face detection)                 │
   │  • Filtered CNN: Sad, Happy, Fear only                  │
   │  • Gender CNN/heuristic (gender detection)              │
   │  • Glasses detection (eyeglasses/sunglasses)            │
@@ -203,7 +209,7 @@ print("  ✓ Created test image: test_face.png")
 # Create a simple config file
 config = {
     "system_version": "2.0",
-    "components": ["MediaPipe", "Streamlit", "SQLite", "CNN"],
+    "components": ["OpenCV", "Streamlit", "SQLite", "CNN"],
     "database_path": "emotion_detection.db",
     "default_port": 8501
 }
