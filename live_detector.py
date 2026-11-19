@@ -2,8 +2,8 @@
 live_detector.py - Real-time webcam emotion detection for this repo.
 
 Uses the trained model files already in this repo:
-  - emotion_model.h5    (48x48 grayscale CNN, 7-class FER2013 softmax output)
-  - emotion_model.hdf5  (64x64 grayscale CNN, used as fallback)
+  - emotion_model.hdf5  (trained 64x64 grayscale CNN, preferred)
+  - emotion_model.h5    (legacy 48x48 CNN, used only as fallback)
 
 Setup (run once, inside your venv):
     pip install tensorflow opencv-python numpy
@@ -16,8 +16,8 @@ Press Q to quit.
 Notes:
   - Face detection uses OpenCV's Haar cascade (no extra downloads needed).
   - Preprocessing matches the repo docs: grayscale -> histogram
-    equalization -> resize to the model's input size. The primary .h5
-    model uses raw 0-255 pixels; the fallback keeps its existing 0-1 scale.
+    equalization -> resize to the model's input size. The preferred .hdf5
+    uses 0-1 input; the legacy .h5 retains its existing 0-255 scale.
   - The 7-class model uses the standard FER2013 label order
     [Angry, Disgust, Fear, Happy, Sad, Surprise, Neutral]. Per the repo
     guide, results are shown in the 5-emotion system view (indices
@@ -34,8 +34,8 @@ import time
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_PATH = BASE_DIR / "emotion_detection.db"
-PRIMARY_MODEL = BASE_DIR / "emotion_model.h5"
-FALLBACK_MODEL = BASE_DIR / "emotion_model.hdf5"
+PRIMARY_MODEL = BASE_DIR / "emotion_model.hdf5"
+FALLBACK_MODEL = BASE_DIR / "emotion_model.h5"
 
 SHOW_ALL_7 = False  # True = show all 7 FER2013 classes, False = 5-emotion view
 
@@ -133,7 +133,9 @@ def load_emotion_model():
     for path in (PRIMARY_MODEL, FALLBACK_MODEL):
         if os.path.exists(path):
             print(f"Loading model: {path}")
-            return keras.models.load_model(path), path
+            if path == FALLBACK_MODEL:
+                print("WARNING: using legacy .h5; its saved weights did not pass expression tests.")
+            return keras.models.load_model(path, compile=False), path
     sys.exit(
         f"No model file found. Put {PRIMARY_MODEL} (or {FALLBACK_MODEL}) "
         "in the same folder as this script."
@@ -202,8 +204,8 @@ def main():
                 roi = gray[y : y + h, x : x + w]
                 roi = cv2.resize(roi, (in_w, in_h))
                 roi = roi.astype("float32")
-                if model_path == FALLBACK_MODEL:
-                    roi /= 255.0  # Preserve the fallback model's existing preprocessing.
+                if model_path == PRIMARY_MODEL:
+                    roi /= 255.0  # Trained .hdf5 model uses 0-1 pixels.
                 roi = roi.reshape(1, in_h, in_w, 1)
 
                 probs = model.predict(roi, verbose=0)[0]
