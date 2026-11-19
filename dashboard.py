@@ -24,7 +24,22 @@ st.set_page_config(
 @st.cache_resource
 def get_db_connection():
     """Get database connection with caching."""
-    return sqlite3.connect('emotion_detection.db', check_same_thread=False)
+    conn = sqlite3.connect('emotion_detection.db', check_same_thread=False)
+    # The shipped database doesn't include the aggregated stats table, so
+    # provide it as a view computed live from emotion_logs.
+    conn.execute('''
+        CREATE VIEW IF NOT EXISTS emotion_stats AS
+        SELECT s.user_id AS user_id,
+               el.emotion AS emotion,
+               COUNT(el.id) AS total_frames,
+               AVG(el.confidence) AS avg_confidence,
+               MAX(el.confidence) AS peak_confidence
+        FROM emotion_logs el
+        JOIN sessions s ON el.session_id = s.id
+        GROUP BY s.user_id, el.emotion
+    ''')
+    conn.commit()
+    return conn
 
 # Initialize session state
 if 'current_session' not in st.session_state:
