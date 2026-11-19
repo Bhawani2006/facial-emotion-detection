@@ -3,7 +3,8 @@
 Run: python emotion_monitor_pro.py
 Optional: python emotion_monitor_pro.py --camera 1
 Requires: tensorflow, opencv-contrib-python, numpy.
-Keep emotion_model.h5 (or emotion_model.hdf5) beside this file.
+Keep emotion_model.hdf5 beside this file (preferred trained model).
+The legacy emotion_model.h5 is used only if the preferred file is missing.
 Q/Esc quit, T toggles theme, F toggles fullscreen.
 
 The seven bars are FER2013 model scores, not medical or mental-state
@@ -87,7 +88,7 @@ def load_model():
                 return keras.models.load_model(str(copy), compile=False)
 
     folder = Path(__file__).resolve().parent
-    for name in ("emotion_model.h5", "emotion_model.hdf5"):
+    for name in ("emotion_model.hdf5", "emotion_model.h5"):
         path = folder / name
         if path.is_file():
             print("Loading", path, "(the first TensorFlow startup can take a while)")
@@ -96,6 +97,10 @@ def load_model():
             if (isinstance(shape, list) or len(shape) != 4 or shape[-1] != 1
                     or int(model.output_shape[-1]) != len(LABELS)):
                 raise RuntimeError("Expected a grayscale, seven-class FER2013 model.")
+            model.emotion_input_divisor = 255.0 if name.endswith(".hdf5") else 1.0
+            model.emotion_model_path = str(path)
+            if name.endswith(".h5"):
+                print("WARNING: using legacy .h5; its saved weights did not pass expression tests.")
             return model, int(shape[1]), int(shape[2])
     raise FileNotFoundError("Put emotion_model.h5 or emotion_model.hdf5 beside this script.")
 
@@ -103,9 +108,10 @@ def load_model():
 def predict_face(model, gray, box, in_h, in_w):
     x, y, w, h = box
     roi = cv2.resize(gray[y:y+h, x:x+w], (in_w, in_h))
-    # This emotion_model.h5 was trained on raw 0-255 pixels (no rescaling layer).
-    # Dividing by 255 squashes every output to ~1/7 (14.3%), so keep 0-255.
+    # The trained 64x64 .hdf5 uses 0-1 input. Keep the legacy .h5 scale
+    # separate; pixel scale is a model-specific contract, not a UI setting.
     batch = roi.astype(np.float32).reshape(1, in_h, in_w, 1)
+    batch /= model.emotion_input_divisor
     scores = np.asarray(model(batch, training=False)).reshape(-1)
     if scores.size != 7 or not np.all(np.isfinite(scores)):
         raise RuntimeError("The emotion model returned invalid scores.")
