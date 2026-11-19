@@ -103,7 +103,9 @@ def load_model():
 def predict_face(model, gray, box, in_h, in_w):
     x, y, w, h = box
     roi = cv2.resize(gray[y:y+h, x:x+w], (in_w, in_h))
-    batch = (roi.astype(np.float32) / 255.0).reshape(1, in_h, in_w, 1)
+    # This emotion_model.h5 was trained on raw 0-255 pixels (no rescaling layer).
+    # Dividing by 255 squashes every output to ~1/7 (14.3%), so keep 0-255.
+    batch = roi.astype(np.float32).reshape(1, in_h, in_w, 1)
     scores = np.asarray(model(batch, training=False)).reshape(-1)
     if scores.size != 7 or not np.all(np.isfinite(scores)):
         raise RuntimeError("The emotion model returned invalid scores.")
