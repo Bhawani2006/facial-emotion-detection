@@ -1,4 +1,4 @@
-"""
+3"""
 Streamlit Dashboard for Emotion Detection System
 Provides real-time visualization and analytics.
 """
@@ -648,7 +648,7 @@ elif page == "🎥 Live Detection":
             st.markdown("**Live Emotion Distribution**")
             mock_data = {
                 'Emotion': ['Sad', 'Happy', 'Fear'],
-                'Count': [random.randint(1, 10) for _ in range(5)]
+                'Count': [random.randint(1, 10) for _ in range(3)]
             }
             mock_df = pd.DataFrame(mock_data)
             
