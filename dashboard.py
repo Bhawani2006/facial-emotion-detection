@@ -1,4 +1,4 @@
-3"""
+"""
 Streamlit Dashboard for Emotion Detection System
 Provides real-time visualization and analytics.
 """
