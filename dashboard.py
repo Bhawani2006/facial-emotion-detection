@@ -59,7 +59,6 @@ def get_user_stats(user_id=None):
         ''')
     
     rows = cursor.fetchall()
-    conn.close()
     return rows
 
 def get_recent_sessions(limit=10):
@@ -78,7 +77,6 @@ def get_recent_sessions(limit=10):
         LIMIT ?
     ''', (limit,))
     rows = cursor.fetchall()
-    conn.close()
     return rows
 
 def get_session_emotion_timeline(session_id):
@@ -92,7 +90,6 @@ def get_session_emotion_timeline(session_id):
         ORDER BY timestamp
     ''', (session_id,))
     rows = cursor.fetchall()
-    conn.close()
     return rows
 
 def get_live_stats():
@@ -114,7 +111,6 @@ def get_live_stats():
     ''')
     
     row = cursor.fetchone()
-    conn.close()
     return row
 
 # ── Dashboard Layout ──────────────────────────────────────────────────────
@@ -142,7 +138,6 @@ total_sessions = cursor.fetchone()[0]
 cursor.execute("SELECT COUNT(*) FROM emotion_logs")
 total_detections = cursor.fetchone()[0]
 
-conn.close()
 
 st.sidebar.metric("👥 Users", total_users)
 st.sidebar.metric("📂 Sessions", total_sessions)
@@ -220,7 +215,6 @@ if page == "📊 Overview":
     ''')
     
     timeline_data = cursor.fetchall()
-    conn.close()
     
     if timeline_data:
         df_timeline = pd.DataFrame(timeline_data, columns=['Date', 'Detections', 'Sessions'])
@@ -255,7 +249,6 @@ elif page == "👤 User Analytics":
     cursor = conn.cursor()
     cursor.execute("SELECT id, username FROM users ORDER BY username")
     users = cursor.fetchall()
-    conn.close()
     
     if users:
         user_options = [f"{row[1]} (ID: {row[0]})" for row in users]
@@ -327,7 +320,6 @@ elif page == "👤 User Analytics":
                 ''', (user_id,))
                 
                 user_sessions = cursor.fetchall()
-                conn.close()
                 
                 if user_sessions:
                     session_df = pd.DataFrame(user_sessions,
@@ -428,7 +420,6 @@ elif page == "📈 Session Details":
                 with st.expander("📋 View Raw Session Data"):
                     st.dataframe(df_timeline, use_container_width=True)
             
-            conn.close()
     else:
         st.info("No sessions found in the database.")
 
@@ -459,7 +450,6 @@ elif page == "⚙️ System Settings":
             db_size = os.path.getsize('emotion_detection.db') / (1024 * 1024)  # MB
             st.metric("💾 Database Size", f"{db_size:.2f} MB")
             
-            conn.close()
         
         with col2:
             st.markdown("**Maintenance Actions**")
@@ -474,7 +464,6 @@ elif page == "⚙️ System Settings":
                 cursor = conn.cursor()
                 cursor.execute("SELECT sql FROM sqlite_master WHERE type='table'")
                 tables = cursor.fetchall()
-                conn.close()
                 
                 schema_text = "```sql\n"
                 for table in tables:
@@ -511,7 +500,7 @@ elif page == "⚙️ System Settings":
                     except sqlite3.IntegrityError:
                         st.error("❌ Username already exists.")
                     finally:
-                        conn.close()
+                        pass
                 else:
                     st.error("❌ Please enter a username.")
         
@@ -526,7 +515,6 @@ elif page == "⚙️ System Settings":
         ''')
         
         users = cursor.fetchall()
-        conn.close()
         
         if users:
             user_df = pd.DataFrame(users, 
@@ -553,7 +541,6 @@ elif page == "⚙️ System Settings":
             df_users = pd.read_sql_query("SELECT * FROM users", conn)
             df_stats = pd.read_sql_query("SELECT * FROM emotion_stats", conn)
             
-            conn.close()
             
             if export_format == "CSV":
                 csv = df_logs.to_csv(index=False)
