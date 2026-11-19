@@ -11,6 +11,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import json
 import numpy as np
+import subprocess
+from live_detector import init_database, DATABASE_PATH
 
 # Page configuration
 st.set_page_config(
@@ -24,7 +26,7 @@ st.set_page_config(
 @st.cache_resource
 def get_db_connection():
     """Get database connection with caching."""
-    conn = sqlite3.connect('emotion_detection.db', check_same_thread=False)
+    conn = init_database(DATABASE_PATH)
     # The shipped database doesn't include the aggregated stats table, so
     # provide it as a view computed live from emotion_logs.
     conn.execute('''
@@ -462,7 +464,7 @@ elif page == "⚙️ System Settings":
             
             # Get database size
             import os
-            db_size = os.path.getsize('emotion_detection.db') / (1024 * 1024)  # MB
+            db_size = os.path.getsize(DATABASE_PATH) / (1024 * 1024)  # MB
             st.metric("💾 Database Size", f"{db_size:.2f} MB")
             
         
@@ -593,108 +595,66 @@ elif page == "⚙️ System Settings":
 elif page == "🎥 Live Detection":
     st.title("🎥 Live Detection Interface")
     
-    st.markdown("""
-    This interface provides real-time emotion detection from webcam.
-    Requires the main detection script to be running.
-    """)
-    
-    # Session controls
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Session Control")
-        
-        username = st.text_input("Username (optional)", 
-                                placeholder="Enter name for personalized stats")
-        age = st.number_input("Age (optional)", min_value=0, max_value=120, value=0)
-        gender = st.selectbox("Gender (optional)", ["", "Male", "Female", "Other"])
-        
-        if st.button("▶️ Start Detection Session", type="primary", use_container_width=True):
-            # This would start the actual detection
-            st.session_state.detection_active = True
-            
-            # Show instructions
-            st.success("""
-            ### Session Started!
-            
-            To start live detection:
-            
-            1. Open a new terminal
-            2. Run: `python enhanced_emotion_detector.py --mode detect --username "YourName"`
-            3. Press 'q' in the camera window to stop
-            """)
-    
-    with col2:
-        st.subheader("Live Preview")
-        
-        # Placeholder for live feed
-        live_container = st.empty()
-        
-        # Simulate live data
-        if st.session_state.get('detection_active', False):
-            import random
-            
-            # Mock live metrics
-            col_metrics1, col_metrics2, col_metrics3 = st.columns(3)
-            with col_metrics1:
-                st.metric("Current Emotion", random.choice(['😊 Happy', '😨 Fear', '😢 Sad']), 
-                         f"{random.randint(65, 92)}%")
-            with col_metrics2:
-                st.metric("Faces Detected", random.randint(1, 5))
-            with col_metrics3:
-                st.metric("FPS", random.randint(25, 30))
-            
-            # Mock live visualization
-            st.markdown("**Live Emotion Distribution**")
-            mock_data = {
-                'Emotion': ['Sad', 'Happy', 'Fear'],
-                'Count': [random.randint(1, 10) for _ in range(3)]
-            }
-            mock_df = pd.DataFrame(mock_data)
-            
-            fig = px.bar(mock_df, x='Emotion', y='Count', 
-                        title="Current Frame Analysis",
-                        color='Emotion',
-                        color_discrete_sequence=px.colors.qualitative.Set3)
+    st.markdown("The webcam opens in a separate window. This page shows saved SQLite results, not a camera feed.")
+    st.info("Keep this dashboard running. Open a second terminal in the same project folder and run the command below.")
+
+    username = st.text_input("Username", value="Guest")
+    age = st.number_input("Age (optional, 0 to skip)", min_value=0, max_value=120, value=0)
+    gender = st.selectbox("Gender (optional)", ["", "Male", "Female", "Other"])
+    command = ["python", "live_detector.py", "--username", username.strip() or "Guest"]
+    if age:
+        command += ["--age", str(age)]
+    if gender:
+        command += ["--gender", gender]
+    st.code(subprocess.list2cmdline(command), language="bash")
+    st.caption("Run this command yourself in the second terminal. This page does not start the camera. Close Emotion Monitor Pro first so only one app uses the webcam. Press Q in the camera window to stop and save the session.")
+    st.button("Refresh saved results")
+
+    st.subheader("Latest Recorded Session")
+    latest = get_recent_sessions(1)
+    if latest:
+        session_id, started, ended, saved_username, _, _, count, _ = latest[0]
+        st.write(f"Session {session_id} | User: {saved_username} | Started: {started}")
+        st.caption(f"Ended: {ended or 'Not ended yet'} | {count} saved face detections. Timestamps use SQLite UTC.")
+        timeline = get_session_emotion_timeline(session_id)
+        if timeline:
+            saved_df = pd.DataFrame(timeline, columns=["Timestamp", "Emotion", "Confidence", "Face ID"])
+            last = saved_df.iloc[-1]
+            st.metric("Last saved emotion", last["Emotion"])
+            st.metric("Last saved confidence", f"{last['Confidence']:.1%}")
+            counts = saved_df.groupby("Emotion").size().reset_index(name="Detections")
+            fig = px.bar(counts, x="Emotion", y="Detections", color="Emotion",
+                         title="Saved Detections in Latest Session")
             st.plotly_chart(fig, use_container_width=True)
-    
-    # Instructions panel
-    with st.expander("📋 Setup Instructions"):
+            st.dataframe(saved_df.tail(20).iloc[::-1], use_container_width=True)
+        else:
+            st.info("No faces saved in this session yet. Face the webcam, then refresh.")
+    else:
+        st.info("No recorded sessions yet. Run live_detector.py using the command above.")
+
+    with st.expander("Setup Instructions"):
         st.markdown("""
-        ### How to Set Up Live Detection
-        
-        1. **Install Required Packages:**
+        1. Activate your existing virtual environment and open the folder containing both scripts and emotion_model.h5.
+        2. If packages are missing, install them with:
         ```bash
-        pip install mediapipe opencv-python tensorflow streamlit
+        python -m pip install tensorflow opencv-python==4.10.0.84 numpy streamlit pandas plotly
         ```
-        
-        2. **Initialize Database:**
+        3. Start the dashboard:
         ```bash
-        python enhanced_emotion_detector.py --mode test
+        python -m streamlit run dashboard.py
         ```
-        
-        3. **Start Live Detection:**
-        ```bash
-        python enhanced_emotion_detector.py --mode detect --username "YourName"
-        ```
-        
-        4. **View Dashboard:**
-        ```bash
-        streamlit run dashboard.py
-        ```
-        
-        ### Keyboard Controls (Detection Window)
-        - **Q**: Quit detection
-        - **Space**: Pause/Resume
-        - **S**: Take screenshot
+        4. Keep that terminal running. Open another terminal with the same environment and folder, then run the generated detection command above.
+        5. Press **Q** in the webcam window to stop. Click **Refresh saved results**, or open Overview, User Analytics or Session Details to see recorded data.
+
+        The database is created automatically beside the scripts. Face IDs identify face boxes within a frame, not tracked people. No video or screenshots are saved.
         """)
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666;'>
-    <p>Emotion Detection System Dashboard • Built with Streamlit & MediaPipe</p>
-    <p>Database: SQLite • Face Detection: MediaPipe BlazeFace • Emotion Model: Custom CNN</p>
+    <p>Emotion Detection System Dashboard • Built with Streamlit & OpenCV</p>
+    <p>Database: SQLite • Face Detection: OpenCV Haar Cascade • Emotion Model: Custom CNN</p>
 </div>
 """, unsafe_allow_html=True)
 
